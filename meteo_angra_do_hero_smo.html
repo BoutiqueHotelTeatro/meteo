@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tempo em Angra do Heroísmo - Açores</title>
+    <!-- Caricamento Tailwind CSS per lo styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Caricamento font Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Caricamento Lucide Icons per icone pulite e moderne -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        html { scroll-behavior: smooth; }
+        body { background: #050607; }
+        body::before {
+            content: "";
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            background:
+                radial-gradient(circle at 20% 0%, rgba(14, 165, 233, 0.08), transparent 28rem),
+                radial-gradient(circle at 100% 65%, rgba(255, 255, 255, 0.025), transparent 24rem);
+        }
+        #weather-content { animation: reveal 420ms ease-out both; }
+        #forecast-dialog {
+            width: min(94vw, 34rem);
+            max-height: 90vh;
+            overflow-y: auto;
+            background: transparent;
+            color: #fff;
+        }
+        #forecast-dialog::backdrop {
+            background: rgba(0, 0, 0, .76);
+            backdrop-filter: blur(8px);
+        }
+        #hourly-container { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.18) transparent; }
+        #hourly-container::-webkit-scrollbar { height: 5px; }
+        #hourly-container::-webkit-scrollbar-thumb { background: rgba(255,255,255,.18); border-radius: 999px; }
+        .smooth-card {
+            transition: transform 220ms ease, border-color 220ms ease, background-color 220ms ease, box-shadow 220ms ease;
+        }
+        .smooth-card:hover {
+            transform: translateY(-2px);
+            border-color: rgba(255,255,255,.16);
+            background-color: rgba(255,255,255,.075);
+            box-shadow: 0 16px 40px rgba(0,0,0,.22);
+        }
+        button, select { transition: all 180ms ease; }
+        button:focus-visible, select:focus-visible {
+            outline: 2px solid rgba(56,189,248,.9);
+            outline-offset: 3px;
+        }
+        @keyframes reveal {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            html { scroll-behavior: auto; }
+            *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+        }
+    </style>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        azores: {
+                            50: '#f0f9ff',
+                            100: '#e0f2fe',
+                            500: '#0ea5e9',
+                            600: '#0284c7',
+                            800: '#075985',
+                            900: '#0c4a6e',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="text-white min-h-screen font-sans antialiased selection:bg-sky-500 selection:text-white">
+
+    <!-- Contenitore Principale -->
+    <div class="max-w-4xl mx-auto px-4 py-6 sm:py-10">
+        
+        <!-- Header e Selettore Località Terceira -->
+        <header class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
+            <div class="flex items-center gap-4">
+                <img src="BHT_Gold_400x-100-removebg-preview.png" alt="Logótipo Boutique Hotel Tém" class="w-16 h-16 sm:w-20 sm:h-20 object-contain shrink-0">
+                <div>
+                    <div class="flex items-center gap-2 text-azores-100 text-sm font-medium mb-1">
+                        <i data-lucide="map-pin" class="w-4 h-4 text-azores-500"></i>
+                        <span>Ilha Terceira, Açores • Portugal</span>
+                    </div>
+                    <h1 id="location-title" class="text-3xl sm:text-4xl font-bold tracking-tight">Angra do Heroísmo</h1>
+                </div>
+            </div>
+
+            <!-- Controlos: localidade, unidade e atualização -->
+            <div class="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                <select id="location-select" aria-label="Selecionar localidade" class="bg-white/[0.055] hover:bg-white/[0.09] backdrop-blur-md border border-white/10 text-white text-sm rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-sky-500/70 transition flex-grow sm:flex-grow-0 cursor-pointer">
+                    <option value="38.6553,-27.2206" class="bg-slate-800">Angra do Heroísmo (Centro)</option>
+                    <option value="38.6458,-27.2275" class="bg-slate-800">Monte Brasil</option>
+                    <option value="38.7294,-27.0603" class="bg-slate-800">Praia da Vitória</option>
+                    <option value="38.7950,-27.2536" class="bg-slate-800">Biscoitos (Piscinas Naturais)</option>
+                    <option value="38.7244,-27.2189" class="bg-slate-800">Serra de Santa Bárbara</option>
+                </select>
+
+                <button id="unit-toggle" aria-label="Alterar unidade de medida" class="bg-white/[0.055] hover:bg-white/[0.11] backdrop-blur-md border border-white/10 rounded-xl px-3.5 py-2.5 text-sm font-semibold transition active:scale-95" title="Alterar unidade de medida">
+                    °C
+                </button>
+
+                <button id="refresh-btn" aria-label="Atualizar dados meteorológicos" class="bg-sky-600 hover:bg-sky-500 rounded-xl p-2.5 text-white transition active:scale-95 shadow-lg shadow-black/40" title="Atualizar dados">
+                    <i data-lucide="refresh-cw" class="w-5 h-5"></i>
+                </button>
+            </div>
+        </header>
+
+        <!-- Banner Messaggi / Errori (Nascosto di default) -->
+        <div id="status-banner" class="hidden mb-6 p-4 rounded-2xl bg-red-500/20 border border-red-500/50 text-red-100 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <i data-lucide="alert-circle" class="w-5 h-5 text-red-400 shrink-0"></i>
+                <span id="status-message" class="text-sm">Não foi possível obter os dados meteorológicos.</span>
+            </div>
+            <button id="close-status" type="button" aria-label="Fechar mensagem" class="text-xs underline hover:text-white">Fechar</button>
+        </div>
+
+        <!-- Scheletro di Caricamento -->
+        <div id="loading-skeleton" class="space-y-6 animate-pulse">
+            <div class="h-64 bg-white/10 rounded-3xl"></div>
+            <div class="h-36 bg-white/10 rounded-3xl"></div>
+            <div class="h-80 bg-white/10 rounded-3xl"></div>
+        </div>
+
+        <!-- Contenuto Meteo Principale -->
+        <main id="weather-content" class="hidden space-y-6">
+            
+            <!-- Card Meteo Attuale -->
+            <section class="smooth-card relative overflow-hidden bg-[#0d0f11]/95 backdrop-blur-xl border border-white/[0.08] rounded-3xl p-6 sm:p-8 shadow-[0_24px_70px_rgba(0,0,0,.38)]">
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                    
+                    <!-- Temperatura e Condizione -->
+                    <div class="flex items-center gap-5">
+                        <div id="current-icon-container" class="p-4 bg-white/10 rounded-2xl border border-white/10 shadow-inner">
+                            <!-- Icona inserita via JS -->
+                        </div>
+                        <div>
+                            <div class="flex items-start">
+                                <span id="current-temp" class="text-6xl sm:text-7xl font-bold tracking-tighter">--</span>
+                                <span id="current-unit" class="text-2xl sm:text-3xl font-light text-azores-200 mt-2">°C</span>
+                            </div>
+                            <p id="current-desc" class="text-lg sm:text-xl font-medium text-azores-100 capitalize mt-1">--</p>
+                            <p id="last-updated" class="text-xs text-slate-300 mt-1">Atualizado às --:--</p>
+                        </div>
+                    </div>
+
+                    <!-- Griglia Dettagli Rapidi -->
+                    <div class="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-2 gap-3 w-full md:w-auto">
+                        <div class="bg-black/20 rounded-2xl p-3.5 border border-white/5">
+                            <div class="flex items-center gap-1.5 text-slate-300 text-xs mb-1">
+                                <i data-lucide="thermometer" class="w-3.5 h-3.5 text-orange-400"></i>
+                                <span>Sensação térmica</span>
+                            </div>
+                            <div id="apparent-temp" class="text-lg font-semibold">--°</div>
+                        </div>
+
+                        <div class="bg-black/20 rounded-2xl p-3.5 border border-white/5">
+                            <div class="flex items-center gap-1.5 text-slate-300 text-xs mb-1">
+                                <i data-lucide="droplets" class="w-3.5 h-3.5 text-sky-400"></i>
+                                <span>Humidade</span>
+                            </div>
+                            <div id="humidity" class="text-lg font-semibold">--%</div>
+                        </div>
+
+                        <div class="bg-black/20 rounded-2xl p-3.5 border border-white/5">
+                            <div class="flex items-center gap-1.5 text-slate-300 text-xs mb-1">
+                                <i data-lucide="wind" class="w-3.5 h-3.5 text-teal-400"></i>
+                                <span>Vento</span>
+                            </div>
+                            <div id="wind-speed" class="text-lg font-semibold">-- km/h</div>
+                        </div>
+
+                        <div class="bg-black/20 rounded-2xl p-3.5 border border-white/5">
+                            <div class="flex items-center gap-1.5 text-slate-300 text-xs mb-1">
+                                <i data-lucide="sun" class="w-3.5 h-3.5 text-yellow-400"></i>
+                                <span>Índice UV</span>
+                            </div>
+                            <div id="uv-index" class="text-lg font-semibold">--</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Nota Microclima Azzorre -->
+                <div class="mt-6 pt-4 border-t border-white/10 flex items-center justify-between text-xs text-slate-300">
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="compass" class="w-4 h-4 text-azores-400"></i>
+                        <span id="wind-dir-text">Vento: --</span>
+                    </div>
+                    <div class="flex items-center gap-4">
+                        <span>Nascer do sol: <strong id="sunrise-time" class="text-white">--:--</strong></span>
+                        <span>Pôr do sol: <strong id="sunset-time" class="text-white">--:--</strong></span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Previsão horária (próximas 24 horas) -->
+            <section class="smooth-card bg-[#0d0f11]/95 backdrop-blur-xl border border-white/[0.08] rounded-3xl p-6 shadow-[0_20px_60px_rgba(0,0,0,.28)]">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-base font-semibold flex items-center gap-2 text-azores-100">
+                        <i data-lucide="clock" class="w-4 h-4 text-azores-400"></i>
+                        <span>Previsão horária (24 h)</span>
+                    </h2>
+                    <span class="text-xs text-slate-300">Deslize para ver mais</span>
+                </div>
+                
+                <div id="hourly-container" class="flex overflow-x-auto gap-3 pb-2 scrollbar-thin">
+                    <!-- Elementi orari generati dinamicamente -->
+                </div>
+            </section>
+
+            <!-- Previsão para sete dias e condições marítimas -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                
+                <!-- Previsão para sete dias -->
+                <section class="smooth-card lg:col-span-2 bg-[#0d0f11]/95 backdrop-blur-xl border border-white/[0.08] rounded-3xl p-6 shadow-[0_20px_60px_rgba(0,0,0,.28)]">
+                    <h2 class="text-base font-semibold flex items-center gap-2 text-azores-100 mb-4">
+                        <i data-lucide="calendar" class="w-4 h-4 text-azores-400"></i>
+                        <span>Previsão para 7 dias</span>
+                    </h2>
+                    
+                    <div id="daily-container" class="divide-y divide-white/10">
+                        <!-- Righe giornaliere generate dinamicamente -->
+                    </div>
+                </section>
+
+                <!-- Pannello Condizioni Oceano Atlantico / Mare -->
+                <section class="smooth-card bg-gradient-to-b from-[#11191d] to-[#090a0b] backdrop-blur-xl border border-white/[0.08] rounded-3xl p-6 shadow-[0_20px_60px_rgba(0,0,0,.28)] flex flex-col justify-between">
+                    <div>
+                        <h2 class="text-base font-semibold flex items-center gap-2 text-azores-100 mb-4">
+                            <i data-lucide="waves" class="w-4 h-4 text-cyan-400"></i>
+                            <span>Estado do mar (Atlântico)</span>
+                        </h2>
+                        <p class="text-xs text-slate-300 mb-5">Condições marítimas costeiras para navegação, surf e banhos em Angra.</p>
+
+                        <div class="space-y-4">
+                            <div class="bg-black/25 rounded-2xl p-4 border border-white/10">
+                                <span class="text-xs text-slate-400 block mb-1">Altura das ondas</span>
+                                <div class="flex items-baseline gap-2">
+                                    <span id="wave-height" class="text-2xl font-bold text-cyan-300">--</span>
+                                    <span class="text-xs text-slate-300">metros</span>
+                                </div>
+                            </div>
+
+                            <div class="bg-black/25 rounded-2xl p-4 border border-white/10">
+                                <span class="text-xs text-slate-400 block mb-1">Período das ondas</span>
+                                <div class="flex items-baseline gap-2">
+                                    <span id="wave-period" class="text-2xl font-bold text-white">--</span>
+                                    <span class="text-xs text-slate-300">segundos</span>
+                                </div>
+                            </div>
+
+                            <div class="bg-black/25 rounded-2xl p-4 border border-white/10">
+                                <span class="text-xs text-slate-400 block mb-1">Direção das ondas</span>
+                                <div id="wave-direction" class="text-lg font-semibold text-white">--</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mt-6 pt-4 border-t border-white/10 text-xs text-slate-400">
+                        <p>Dica dos Açores: o tempo na Terceira muda rapidamente («quatro estações num dia»). Leve sempre um casaco leve e corta-vento.</p>
+                    </div>
+                </section>
+
+            </div>
+        </main>
+
+        <!-- Footer -->
+        <footer class="mt-10 text-center text-xs text-slate-400">
+            <p>Dados meteorológicos e marítimos fornecidos em tempo real pela Open-Meteo • Fuso horário: Atlantic/Azores (AZOT)</p>
+        </footer>
+    </div>
+
+    <dialog id="forecast-dialog" aria-labelledby="forecast-title" class="rounded-3xl border border-white/10 shadow-2xl">
+        <section class="smooth-card text-white bg-[#0d0f11] border border-white/10 rounded-3xl p-6 sm:p-8">
+            <div class="flex items-start justify-between gap-4 mb-6">
+                <div>
+                    <p class="text-xs uppercase tracking-[.18em] text-slate-400">Previsão diária</p>
+                    <h2 id="forecast-title" class="text-2xl font-bold mt-1">Previsão</h2>
+                </div>
+                <button id="close-forecast" type="button" aria-label="Fechar previsão" class="rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 p-2 text-slate-300">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <div class="flex items-center gap-5">
+                <div id="forecast-icon" class="p-4 bg-white/10 rounded-2xl border border-white/10"></div>
+                <div>
+                    <p id="forecast-description" class="text-lg font-medium text-sky-100">--</p>
+                    <p class="text-3xl font-bold mt-1"><span id="forecast-max">--</span><span class="text-slate-500 mx-2">/</span><span id="forecast-min" class="text-slate-300">--</span><span id="forecast-unit" class="text-lg font-normal text-slate-400 ml-1">°C</span></p>
+                    <p class="text-xs text-slate-400 mt-1">Máxima / mínima</p>
+                </div>
+            </div>
+            <div class="grid grid-cols-2 gap-3 mt-6">
+                <div class="bg-black/30 rounded-2xl border border-white/5 p-4">
+                    <p class="text-xs text-slate-400 mb-1">Probabilidade de precipitação</p>
+                    <p id="forecast-precip" class="text-xl font-semibold text-sky-300">--</p>
+                </div>
+                <div class="bg-black/30 rounded-2xl border border-white/5 p-4">
+                    <p class="text-xs text-slate-400 mb-1">Índice UV máximo</p>
+                    <p id="forecast-uv" class="text-xl font-semibold text-amber-300">--</p>
+                </div>
+                <div class="bg-black/30 rounded-2xl border border-white/5 p-4">
+                    <p class="text-xs text-slate-400 mb-1">Vento máximo</p>
+                    <p id="forecast-wind" class="text-xl font-semibold text-teal-300">--</p>
+                </div>
+                <div class="bg-black/30 rounded-2xl border border-white/5 p-4">
+                    <p class="text-xs text-slate-400 mb-1">Nascer do sol</p>
+                    <p id="forecast-sunrise" class="text-xl font-semibold">--:--</p>
+                </div>
+                <div class="bg-black/30 rounded-2xl border border-white/5 p-4">
+                    <p class="text-xs text-slate-400 mb-1">Pôr do sol</p>
+                    <p id="forecast-sunset" class="text-xl font-semibold">--:--</p>
+                </div>
+            </div>
+        </section>
+    </dialog>
+
+    <script>
+        /**
+         * Stato globale dell'applicazione
+         */
+        const state = {
+            lat: 38.6553,
+            lon: -27.2206,
+            locationName: 'Angra do Heroísmo',
+            unit: 'C', // 'C' o 'F'
+            weatherData: null,
+            marineData: null,
+            requestController: null,
+            requestId: 0
+        };
+
+        /**
+         * Mapeamento dos códigos meteorológicos WMO para descrições e ícones
+         */
+        function getWeatherInfo(code, isDay = 1) {
+            const map = {
+                0: { desc: 'Céu limpo', icon: isDay ? 'sun' : 'moon', color: isDay ? 'text-yellow-400' : 'text-indigo-300' },
+                1: { desc: 'Predominantemente limpo', icon: isDay ? 'sun' : 'moon', color: isDay ? 'text-yellow-300' : 'text-indigo-200' },
+                2: { desc: 'Parcialmente nublado', icon: 'cloud-sun', color: 'text-amber-300' },
+                3: { desc: 'Nublado', icon: 'cloud', color: 'text-slate-300' },
+                45: { desc: 'Nevoeiro', icon: 'cloud-fog', color: 'text-slate-400' },
+                48: { desc: 'Nevoeiro gelado', icon: 'cloud-fog', color: 'text-slate-400' },
+                51: { desc: 'Chuvisco ligeiro', icon: 'cloud-drizzle', color: 'text-sky-300' },
+                53: { desc: 'Chuvisco moderado', icon: 'cloud-drizzle', color: 'text-sky-400' },
+                55: { desc: 'Chuvisco intenso', icon: 'cloud-drizzle', color: 'text-sky-500' },
+                61: { desc: 'Chuva fraca', icon: 'cloud-rain', color: 'text-blue-400' },
+                63: { desc: 'Chuva moderada', icon: 'cloud-rain', color: 'text-blue-500' },
+                65: { desc: 'Chuva forte', icon: 'cloud-rain', color: 'text-blue-600' },
+                80: { desc: 'Aguaceiros fracos', icon: 'cloud-sun-rain', color: 'text-sky-400' },
+                81: { desc: 'Aguaceiros moderados', icon: 'cloud-rain', color: 'text-blue-500' },
+                82: { desc: 'Aguaceiros fortes', icon: 'cloud-lightning', color: 'text-purple-400' },
+                95: { desc: 'Trovoada', icon: 'cloud-lightning', color: 'text-yellow-400' },
+                96: { desc: 'Trovoada com granizo', icon: 'cloud-lightning', color: 'text-yellow-500' },
+                99: { desc: 'Trovoada forte', icon: 'cloud-lightning', color: 'text-red-400' }
+            };
+            return map[code] || { desc: 'Tempo variável', icon: 'cloud', color: 'text-slate-300' };
+        }
+
+        /**
+         * Converte i gradi bussola in punti cardinali
+         */
+        function getCardinalDirection(angle) {
+            const directions = ['Norte (N)', 'Nordeste (NE)', 'Este (E)', 'Sudeste (SE)', 'Sul (S)', 'Sudoeste (SO)', 'Oeste (O)', 'Noroeste (NO)'];
+            return directions[Math.round(angle / 45) % 8];
+        }
+
+        /**
+         * Converte Celsius in Fahrenheit se necessario
+         */
+        function formatTemp(celsius) {
+            if (celsius === null || celsius === undefined) return '--';
+            const val = state.unit === 'C' ? celsius : (celsius * 9/5) + 32;
+            return Math.round(val);
+        }
+
+        /**
+         * Mostra un errore nel banner dedicato
+         */
+        function showError(msg) {
+            const banner = document.getElementById('status-banner');
+            document.getElementById('status-message').textContent = msg;
+            banner.classList.remove('hidden');
+        }
+
+        /**
+         * Recupera dati meteo e marini da Open-Meteo API
+         */
+        async function fetchWeatherData() {
+            if (state.requestController) state.requestController.abort();
+            const controller = new AbortController();
+            const requestId = ++state.requestId;
+            state.requestController = controller;
+            const timeoutId = setTimeout(() => controller.abort(), 12000);
+            document.getElementById('status-banner').classList.add('hidden');
+
+            try {
+                const { lat, lon } = state;
+                // Previsão meteorológica no fuso horário dos Açores
+                const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,weather_code,wind_speed_10m,wind_direction_10m&hourly=temperature_2m,precipitation_probability,weather_code,is_day&daily=weather_code,temperature_2m_max,temperature_2m_min,wind_speed_10m_max,sunrise,sunset,uv_index_max,precipitation_probability_max&timezone=Atlantic%2FAzores`;
+
+                // Previsão marítima para a zona de Terceira
+                const marineUrl = `https://marine-api.open-meteo.com/v1/marine?latitude=${lat}&longitude=${lon}&current=wave_height,wave_direction,wave_period&timezone=Atlantic%2FAzores`;
+
+                const [weatherRes, marineRes] = await Promise.all([
+                    fetch(weatherUrl, { signal: controller.signal }),
+                    fetch(marineUrl, { signal: controller.signal }).catch(() => null) // A API marítima pode não ter dados para pontos no interior
+                ]);
+
+                if (!weatherRes.ok) {
+                    throw new Error('Erro na resposta do servidor meteorológico.');
+                }
+
+                const weatherData = await weatherRes.json();
+                const marineData = marineRes && marineRes.ok ? await marineRes.json() : null;
+                if (requestId !== state.requestId) return;
+
+                state.weatherData = weatherData;
+                state.marineData = marineData;
+                
+                renderUI();
+
+            } catch (error) {
+                if (requestId !== state.requestId) return;
+                if (error.name === 'AbortError') {
+                    showError('A ligação demorou demasiado tempo. Tente atualizar novamente.');
+                } else {
+                    console.error('Erro ao obter dados:', error);
+                    showError('Erro de ligação. Verifique a sua rede e tente novamente.');
+                }
+            } finally {
+                clearTimeout(timeoutId);
+                if (requestId === state.requestId) {
+                    state.requestController = null;
+                    document.getElementById('loading-skeleton').classList.add('hidden');
+                    document.getElementById('weather-content').classList.remove('hidden');
+                }
+            }
+        }
+
+        /**
+         * Atualiza a interface com os dados recebidos
+         */
+        function renderUI() {
+            if (!state.weatherData) return;
+
+            const current = state.weatherData.current;
+            const daily = state.weatherData.daily;
+            const hourly = state.weatherData.hourly;
+
+            // Nome da localidade
+            document.getElementById('location-title').textContent = state.locationName;
+
+            // Condições atuais
+            const weatherInfo = getWeatherInfo(current.weather_code, current.is_day);
+            document.getElementById('current-temp').textContent = formatTemp(current.temperature_2m);
+            document.getElementById('current-unit').textContent = `°${state.unit}`;
+            document.getElementById('current-desc').textContent = weatherInfo.desc;
+            
+            // Icona principale
+            const iconContainer = document.getElementById('current-icon-container');
+            iconContainer.innerHTML = `<i data-lucide="${weatherInfo.icon}" class="w-16 h-16 sm:w-20 sm:h-20 ${weatherInfo.color}"></i>`;
+
+            // Orario aggiornamento
+            const updateTime = new Date(current.time);
+            document.getElementById('last-updated').textContent = `Hora local de ${state.locationName}: ${updateTime.toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit', timeZone: 'Atlantic/Azores' })}`;
+
+            // Dettagli rapidi
+            document.getElementById('apparent-temp').textContent = `${formatTemp(current.apparent_temperature)}°${state.unit}`;
+            document.getElementById('humidity').textContent = `${current.relative_humidity_2m}%`;
+            document.getElementById('wind-speed').textContent = `${Math.round(current.wind_speed_10m)} km/h`;
+            document.getElementById('uv-index').textContent = daily.uv_index_max[0] !== undefined ? daily.uv_index_max[0].toFixed(1) : '--';
+            document.getElementById('wind-dir-text').textContent = `Vento de ${getCardinalDirection(current.wind_direction_10m)} (${current.wind_direction_10m}°)`;
+
+            // Nascer e pôr do sol
+            if (daily.sunrise && daily.sunset) {
+                const sunrise = daily.sunrise[0].slice(11, 16);
+                const sunset = daily.sunset[0].slice(11, 16);
+                document.getElementById('sunrise-time').textContent = sunrise;
+                document.getElementById('sunset-time').textContent = sunset;
+            }
+
+            // Apresenta a previsão horária para as próximas 24 horas
+            renderHourly(hourly, current.time);
+
+            // Apresenta a previsão para sete dias
+            renderDaily(daily);
+
+            // Render Dati Marini
+            renderMarine();
+
+            // Inizializza le nuove icone Lucide
+            lucide.createIcons();
+        }
+
+        /**
+         * Genera le card per le previsioni orarie
+         */
+        function renderHourly(hourly, currentTimeStr) {
+            const container = document.getElementById('hourly-container');
+            container.innerHTML = '';
+
+            // Trova l'indice dell'ora corrente
+            const currentHourPrefix = currentTimeStr.slice(0, 13);
+            let startIndex = hourly.time.findIndex(t => t.startsWith(currentHourPrefix));
+            if (startIndex === -1) startIndex = 0;
+
+            // Mostra le prossime 24 ore
+            for (let i = startIndex; i < Math.min(startIndex + 24, hourly.time.length); i++) {
+                const hourLabel = i === startIndex ? 'Agora' : hourly.time[i].slice(11, 16);
+                const info = getWeatherInfo(hourly.weather_code[i], hourly.is_day[i]);
+                const precip = hourly.precipitation_probability[i];
+                const temp = formatTemp(hourly.temperature_2m[i]);
+
+                const card = document.createElement('div');
+                card.className = `smooth-card flex-shrink-0 w-24 p-3.5 rounded-2xl border flex flex-col items-center justify-between gap-2 ${i === startIndex ? 'bg-sky-500/20 border-sky-400/30' : 'bg-black/20 border-white/[0.06]'}`;
+                
+                card.innerHTML = `
+                    <span class="text-xs font-medium ${i === startIndex ? 'text-white' : 'text-slate-300'}">${hourLabel}</span>
+                    <i data-lucide="${info.icon}" class="w-7 h-7 my-1 ${info.color}"></i>
+                    <span class="text-base font-bold">${temp}°</span>
+                    <div class="flex items-center gap-1 text-[11px] text-sky-300 h-4">
+                        ${precip > 0 ? `<i data-lucide="droplet" class="w-3 h-3"></i><span>${precip}%</span>` : '<span class="text-slate-500">-</span>'}
+                    </div>
+                `;
+                container.appendChild(card);
+            }
+        }
+
+        /**
+         * Cria a lista das previsões para sete dias
+         */
+        function renderDaily(daily) {
+            const container = document.getElementById('daily-container');
+            container.innerHTML = '';
+
+            const daysPt = ['domingo', 'segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado'];
+
+            for (let i = 0; i < daily.time.length; i++) {
+                const dateObj = new Date(daily.time[i] + 'T12:00:00');
+                const dayName = i === 0 ? 'Hoje' : (i === 1 ? 'Amanhã' : daysPt[dateObj.getDay()]);
+                const info = getWeatherInfo(daily.weather_code[i], 1);
+                const minTemp = formatTemp(daily.temperature_2m_min[i]);
+                const maxTemp = formatTemp(daily.temperature_2m_max[i]);
+                const precipProb = daily.precipitation_probability_max[i];
+                const maxWind = daily.wind_speed_10m_max && daily.wind_speed_10m_max[i] != null
+                    ? Math.round(daily.wind_speed_10m_max[i])
+                    : null;
+
+                const row = document.createElement('div');
+                row.type = 'button';
+                row.className = 'w-full text-left py-3.5 flex items-center justify-between gap-2 text-sm hover:bg-white/[0.035] focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-400 rounded-lg px-2 -mx-2';
+                row.setAttribute('aria-label', `Ver previsão para ${dayName}${maxWind == null ? '' : `, vento máximo ${maxWind} quilómetros por hora`}`);
+
+                row.innerHTML = `
+                    <div class="w-20 sm:w-32 font-medium text-slate-100">${dayName}</div>
+                    
+                    <div class="flex items-center gap-2 flex-1">
+                        <i data-lucide="${info.icon}" class="w-5 h-5 ${info.color} shrink-0"></i>
+                        <span class="text-xs text-slate-300 hidden sm:inline truncate">${info.desc}</span>
+                    </div>
+
+                    <div class="w-14 flex items-center justify-end gap-1 text-[11px] text-teal-300" aria-label="${maxWind == null ? 'Vento sem dados' : `Vento máximo ${maxWind} km/h`}">
+                        <i data-lucide="wind" class="w-3.5 h-3.5 shrink-0"></i><span>${maxWind == null ? '--' : `${maxWind} km/h`}</span>
+                    </div>
+
+                    <div class="w-12 sm:w-14 flex items-center justify-end gap-1 text-xs text-sky-300">
+                        ${precipProb > 10 ? `<i data-lucide="umbrella" class="w-3.5 h-3.5"></i><span class="hidden sm:inline">${precipProb}%</span>` : ''}
+                    </div>
+
+                    <div class="w-20 sm:w-24 flex items-center justify-end gap-2 sm:gap-3 font-semibold">
+                        <span class="text-slate-400">${minTemp}°</span>
+                        <div class="w-10 h-1.5 rounded-full bg-white/10 overflow-hidden hidden sm:block">
+                            <div class="h-full bg-gradient-to-r from-sky-400 to-amber-400 rounded-full" style="width: 75%"></div>
+                        </div>
+                        <span class="text-white">${maxTemp}°</span>
+                    </div>
+                `;
+                row.addEventListener('click', () => showDailyForecast(daily, i, row));
+                container.appendChild(row);
+            }
+        }
+
+        function showDailyForecast(daily, index, trigger) {
+            const date = new Date(`${daily.time[index]}T12:00:00`);
+            const dayName = index === 0 ? 'Hoje' : index === 1 ? 'Amanhã' : date.toLocaleDateString('pt-PT', { weekday: 'long' });
+            const dateLabel = date.toLocaleDateString('pt-PT', { day: 'numeric', month: 'long' });
+            const info = getWeatherInfo(daily.weather_code[index], 1);
+            const precip = daily.precipitation_probability_max[index];
+            const uv = daily.uv_index_max[index];
+            const maxWind = daily.wind_speed_10m_max && daily.wind_speed_10m_max[index] != null
+                ? Math.round(daily.wind_speed_10m_max[index])
+                : null;
+
+            document.getElementById('forecast-title').textContent = `${dayName}, ${dateLabel}`;
+            document.getElementById('forecast-description').textContent = info.desc;
+            document.getElementById('forecast-max').textContent = formatTemp(daily.temperature_2m_max[index]);
+            document.getElementById('forecast-min').textContent = formatTemp(daily.temperature_2m_min[index]);
+            document.getElementById('forecast-unit').textContent = `°${state.unit}`;
+            document.getElementById('forecast-precip').textContent = precip == null ? 'N/D' : `${precip}%`;
+            document.getElementById('forecast-uv').textContent = uv == null ? 'N/D' : Number(uv).toFixed(1);
+            document.getElementById('forecast-wind').textContent = maxWind == null ? 'N/D' : `${maxWind} km/h`;
+            document.getElementById('forecast-sunrise').textContent = daily.sunrise[index] ? daily.sunrise[index].slice(11, 16) : '--:--';
+            document.getElementById('forecast-sunset').textContent = daily.sunset[index] ? daily.sunset[index].slice(11, 16) : '--:--';
+            document.getElementById('forecast-icon').innerHTML = `<i data-lucide="${info.icon}" class="w-16 h-16 ${info.color}"></i>`;
+            lucide.createIcons();
+
+            const dialog = document.getElementById('forecast-dialog');
+            dialog.returnValue = '';
+            dialog.showModal();
+            document.getElementById('close-forecast').onclick = () => dialog.close();
+            dialog.addEventListener('close', () => trigger.focus(), { once: true });
+        }
+
+        /**
+         * Atualiza os dados relativos às condições do mar
+         */
+        function renderMarine() {
+            const heightEl = document.getElementById('wave-height');
+            const periodEl = document.getElementById('wave-period');
+            const dirEl = document.getElementById('wave-direction');
+
+            if (state.marineData && state.marineData.current && state.marineData.current.wave_height !== null) {
+                const m = state.marineData.current;
+                heightEl.textContent = m.wave_height.toFixed(1);
+                periodEl.textContent = m.wave_period ? Math.round(m.wave_period) : '--';
+                dirEl.textContent = m.wave_direction !== null ? getCardinalDirection(m.wave_direction) : '--';
+            } else {
+                heightEl.textContent = 'N/D';
+                periodEl.textContent = '--';
+                dirEl.textContent = 'Zona interior';
+            }
+        }
+
+        /**
+         * Event Listeners
+         */
+        document.addEventListener('DOMContentLoaded', () => {
+            // Inicializa os ícones estáticos
+            lucide.createIcons();
+            document.getElementById('close-status').addEventListener('click', () => {
+                document.getElementById('status-banner').classList.add('hidden');
+            });
+            document.getElementById('forecast-dialog').addEventListener('click', (event) => {
+                if (event.target === event.currentTarget) event.currentTarget.close();
+            });
+
+            // Carregamento inicial
+            fetchWeatherData();
+
+            // Alteração da localidade na ilha Terceira
+            document.getElementById('location-select').addEventListener('change', (e) => {
+                const [lat, lon] = e.target.value.split(',');
+                state.lat = parseFloat(lat);
+                state.lon = parseFloat(lon);
+                state.locationName = e.target.options[e.target.selectedIndex].text.split(' (')[0];
+                fetchWeatherData();
+            });
+
+            // Alterna entre °C e °F
+            document.getElementById('unit-toggle').addEventListener('click', (e) => {
+                state.unit = state.unit === 'C' ? 'F' : 'C';
+                e.target.textContent = `°${state.unit}`;
+                renderUI();
+            });
+
+            // Botão para atualizar
+            document.getElementById('refresh-btn').addEventListener('click', () => {
+                fetchWeatherData();
+            });
+        });
+    </script>
+</body>
+</html>
